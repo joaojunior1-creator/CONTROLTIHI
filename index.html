@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CONTROLE DE ALTERAÇÃO DE TIHI</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS (XLSX) para exportação real em Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        html { scroll-behavior: smooth; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased min-h-screen flex flex-col">
+
+    <!-- 1. BARRA SUPERIOR (DARK SLATE #0F172A) -->
+    <header class="bg-[#0F172A] text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3.5">
+                <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center shrink-0">
+                    <i data-lucide="boxes" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white uppercase">
+                        CONTROLE DE ALTERAÇÃO DE TIHI
+                    </h1>
+                    <p class="text-xs text-slate-400">
+                        Gestão de Lastro × Camada (Paletização) e Integração Drive Compartilhado
+                    </p>
+                </div>
+            </div>
+
+            <!-- Botões de Ação no Topo -->
+            <div class="flex flex-wrap items-center gap-2.5 self-start sm:self-center">
+                <a id="btnAbrirPlanilhaTop" href="#" target="_blank" rel="noopener noreferrer" onclick="verificarUrlDrive(event)" class="inline-flex items-center gap-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-sky-400 px-3.5 py-2.5 rounded-xl border border-slate-700 transition">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                    <span>Abrir Planilha / Drive</span>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5 opacity-80"></i>
+                </a>
+
+                <button type="button" onclick="abrirModalIntegracao()" class="inline-flex items-center gap-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2.5 rounded-xl shadow-sm transition cursor-pointer">
+                    <i data-lucide="settings-2" class="w-4 h-4"></i>
+                    <span>Configurar Integração Drive</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notificações Flutuantes (Toasts) -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- FORMULÁRIO E IFRAME OCULTOS PARA ENVIO AUTENTICADO VIA SESSÃO DO NAVEGADOR (SSO GOOGLE WORKSPACE) -->
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;" onload="handleIframeLoad()"></iframe>
+    <form id="googleForm" method="POST" target="hidden_iframe" style="display:none;">
+        <input type="hidden" name="solicitante" id="gf_solicitante">
+        <input type="hidden" name="data" id="gf_data">
+        <input type="hidden" name="item" id="gf_item">
+        <input type="hidden" name="anterior" id="gf_anterior">
+        <input type="hidden" name="atualizado" id="gf_atualizado">
+        <input type="hidden" name="variacao" id="gf_variacao">
+    </form>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+
+        <!-- Banner de Status de Conexão e Aviso de Sessão Corporativa -->
+        <div id="bannerConexao" class="bg-white border border-slate-200 rounded-2xl px-5 py-3.5 shadow-xs space-y-2">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5 text-xs sm:text-sm">
+                    <span id="indicadorDot" class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
+                    <span id="indicadorTexto" class="text-slate-700">
+                        Integração com Google Sheets ainda não configurada. Configure a URL do Web App para enviar automaticamente.
+                    </span>
+                </div>
+                <button type="button" onclick="abrirModalIntegracao()" class="text-xs font-bold text-blue-600 hover:text-blue-800 underline underline-offset-2 self-start sm:self-center shrink-0 cursor-pointer">
+                    Configurar agora →
+                </button>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/70">
+                <i data-lucide="shield-check" class="w-4 h-4 text-blue-600 shrink-0"></i>
+                <span>
+                    <strong>Autenticação Corporativa:</strong> Mantenha sua conta corporativa Google logada neste mesmo navegador para que a sessão seja enviada automaticamente na gravação.
+                </span>
+            </div>
+        </div>
+
+        <!-- 2. CARD PRINCIPAL DO FORMULÁRIO -->
+        <section class="bg-white rounded-2xl shadow-md border border-slate-200/90 overflow-hidden">
+            <form id="formTihi" onsubmit="handleSalvarEEnviar(event)" class="p-6 sm:p-8 space-y-6">
+
+                <!-- Linha 1: Solicitante, Data, Item -->
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+                    <!-- Solicitante -->
+                    <div class="md:col-span-5">
+                        <label for="solicitante" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                            Solicitante <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                            </div>
+                            <input type="text" id="solicitante" required placeholder="Nome do solicitante / setor" class="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                    </div>
+
+                    <!-- Data -->
+                    <div class="md:col-span-3">
+                        <label for="dataAlteracao" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                            Data <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                            </div>
+                            <input type="date" id="dataAlteracao" required class="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                    </div>
+
+                    <!-- Item (SKU / Descrição) -->
+                    <div class="md:col-span-4">
+                        <label for="itemSku" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                            Item (SKU / Descrição) <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                <i data-lucide="barcode" class="w-4 h-4 text-slate-400"></i>
+                            </div>
+                            <input type="text" id="itemSku" required placeholder="Ex: SKU-1045 - Caixa 12x1L" class="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linha 2: Sub-cards Lado a Lado (Anterior vs Atualizado) -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    
+                    <!-- Sub-card 1: Base × Altura Anterior (Neutro) -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between gap-2 mb-4">
+                                <span class="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                                    Base × Altura Anterior
+                                </span>
+                                <span id="badgeTotalAnterior" class="font-mono text-xs font-bold bg-slate-200 text-slate-800 px-3 py-1 rounded-lg">
+                                    Total: 0 cx/plt
+                                </span>
+                            </div>
+
+                            <div class="grid grid-cols-11 gap-2 items-end">
+                                <div class="col-span-5">
+                                    <label for="baseAnterior" class="block text-xs font-semibold text-slate-600 mb-1">
+                                        Base (Lastro) <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="number" id="baseAnterior" min="1" step="1" required placeholder="0" oninput="calcularTotais()" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl font-mono text-base font-bold text-center text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500">
+                                </div>
+
+                                <div class="col-span-1 text-center pb-2.5 font-bold text-lg text-slate-400">×</div>
+
+                                <div class="col-span-5">
+                                    <label for="alturaAnterior" class="block text-xs font-semibold text-slate-600 mb-1">
+                                        Altura (Camadas) <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="number" id="alturaAnterior" min="1" step="1" required placeholder="0" oninput="calcularTotais()" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl font-mono text-base font-bold text-center text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-card 2: Base × Altura Atualizado (Destacado em Azul) -->
+                    <div class="bg-blue-50/80 border-2 border-blue-200 rounded-2xl p-5 flex flex-col justify-between">
+                        <div>
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                                <span class="text-xs font-extrabold uppercase tracking-wider text-blue-700 flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                                    Base × Altura Atualizado
+                                </span>
+                                <div class="flex items-center gap-1.5">
+                                    <span id="badgeVariacao" class="hidden font-mono text-xs font-bold px-2.5 py-1 rounded-lg"></span>
+                                    <span id="badgeTotalAtualizado" class="font-mono text-xs font-bold bg-blue-600 text-white px-3 py-1 rounded-lg shadow-xs">
+                                        Total: 0 cx/plt
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-11 gap-2 items-end">
+                                <div class="col-span-5">
+                                    <label for="baseAtualizada" class="block text-xs font-semibold text-blue-950 mb-1">
+                                        Base (Lastro) <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="number" id="baseAtualizada" min="1" step="1" required placeholder="0" oninput="calcularTotais()" class="w-full px-3 py-2.5 bg-white border border-blue-300 rounded-xl font-mono text-base font-bold text-center text-blue-950 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
+
+                                <div class="col-span-1 text-center pb-2.5 font-bold text-lg text-blue-500">×</div>
+
+                                <div class="col-span-5">
+                                    <label for="alturaAtualizada" class="block text-xs font-semibold text-blue-950 mb-1">
+                                        Altura (Camadas) <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="number" id="alturaAtualizada" min="1" step="1" required placeholder="0" oninput="calcularTotais()" class="w-full px-3 py-2.5 bg-white border border-blue-300 rounded-xl font-mono text-base font-bold text-center text-blue-950 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linha 3: Botões de Ação -->
+                <div class="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <button type="button" onclick="limparFormulario(false)" class="inline-flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-sm px-4 py-2.5 rounded-xl transition cursor-pointer">
+                        <i data-lucide="eraser" class="w-4 h-4"></i>
+                        <span>Limpar</span>
+                    </button>
+
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <button type="button" onclick="exportarExcel()" class="inline-flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-sm px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                            <span>Exportar Excel (.xlsx)</span>
+                        </button>
+
+                        <button type="submit" id="btnSubmitPrincipal" class="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-sm transition cursor-pointer">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                            <span>Salvar & Enviar para Planilha Google</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- 5. TABELA DE HISTÓRICO DE REGISTROS -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 bg-slate-100 rounded-lg text-slate-700">
+                        <i data-lucide="history" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-extrabold uppercase tracking-wide text-slate-900">
+                            Histórico de Alterações Registradas
+                        </h2>
+                        <p class="text-xs text-slate-500">
+                            Registros salvos localmente com envio autenticado para o Drive Compartilhado
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <span id="contadorRegistros" class="text-xs font-semibold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200">
+                        0 registros
+                    </span>
+                    <button type="button" id="btnLimparHistorico" onclick="solicitarLimparHistorico()" class="hidden inline-flex items-center gap-1.5 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-lg border border-red-200 transition cursor-pointer">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Limpar Histórico</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <th class="py-3.5 px-4 sm:px-6">Data</th>
+                            <th class="py-3.5 px-4">Solicitante</th>
+                            <th class="py-3.5 px-4">Item (SKU)</th>
+                            <th class="py-3.5 px-4 text-center">TIHI Anterior</th>
+                            <th class="py-3.5 px-4 text-center">TIHI Atualizado</th>
+                            <th class="py-3.5 px-4 text-center">Variação</th>
+                            <th class="py-3.5 px-4 text-center">Status de Envio</th>
+                            <th class="py-3.5 px-4 sm:px-6 text-right">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaCorpo" class="divide-y divide-slate-200 text-sm">
+                        <!-- Preenchido via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Estado Vazio -->
+            <div id="estadoVazio" class="py-12 px-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="clipboard-list" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-slate-800">Nenhuma alteração registrada ainda</h3>
+                <p class="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                    Preencha os campos acima e clique em <strong>"Salvar & Enviar para Planilha Google"</strong>.
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <!-- 4. MODAL 'CONFIGURAR INTEGRAÇÃO DRIVE' -->
+    <div id="modalIntegracao" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            <!-- Cabeçalho Modal -->
+            <div class="px-6 py-4 bg-[#0F172A] text-white flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <i data-lucide="cloud-cog" class="w-5 h-5 text-blue-400"></i>
+                    <h3 class="font-bold text-base">Configurar Integração Drive Compartilhado & Google Sheets</h3>
+                </div>
+                <button type="button" onclick="fecharModalIntegracao()" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Corpo Modal -->
+            <div class="p-6 overflow-y-auto space-y-5 text-sm text-slate-700">
+                <!-- Campo 1: URL da Planilha / Pasta no Drive -->
+                <div>
+                    <label for="inputDriveUrl" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                        1. URL da Planilha ou Pasta no Drive Compartilhado
+                    </label>
+                    <input type="url" id="inputDriveUrl" placeholder="https://docs.google.com/spreadsheets/d/..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-slate-500 mt-1">Abre sua planilha/pasta diretamente pelo botão superior <strong>"Abrir Planilha / Drive"</strong>.</p>
+                </div>
+
+                <!-- Campo 2: URL do Web App Google Apps Script + Botão Testar Conexão -->
+                <div>
+                    <label for="inputScriptUrl" class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                        2. URL do Web App Google Apps Script (Pública ou Corporativa /exec)
+                    </label>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="url" id="inputScriptUrl" placeholder="https://script.google.com/a/macros/seu-dominio.com/s/.../exec" class="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button type="button" id="btnTestarConexao" onclick="testarConexaoAgora()" class="inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer shrink-0">
+                            <i data-lucide="zap" class="w-4 h-4"></i>
+                            <span>Testar Conexão Agora</span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">Suporta tanto URLs públicas (<code class="font-mono text-[11px]">/macros/s/.../exec</code>) quanto corporativas Google Workspace (<code class="font-mono text-[11px]">/a/macros/dominio/s/.../exec</code>).</p>
+                </div>
+
+                <!-- Instruções de Implantação -->
+                <div class="bg-blue-50/80 border border-blue-200 rounded-xl p-4 space-y-2">
+                    <h4 class="text-xs font-extrabold uppercase tracking-wider text-blue-950 flex items-center gap-1.5">
+                        <i data-lucide="info" class="w-4 h-4 text-blue-600"></i>
+                        Como implantar no Google Apps Script
+                    </h4>
+                    <ol class="list-decimal list-inside text-xs text-blue-950 space-y-1">
+                        <li>Abra sua planilha no Drive e acesse <strong>Extensões → Apps Script</strong>.</li>
+                        <li>Substitua todo o código existente pelo código abaixo e salve (<kbd class="px-1.5 py-0.5 bg-white border rounded">Ctrl + S</kbd>).</li>
+                        <li>Clique em <strong>Implantar → Nova implantação</strong> (ou <em>Gerenciar implantações → Editar → Nova versão</em>), escolha <strong>App da Web</strong> e clique em <strong>Implantar</strong>.</li>
+                        <li>Cole a URL gerada (terminada em <strong>/exec</strong>) no Campo 2 acima e clique em <strong>Testar Conexão Agora</strong>.</li>
+                    </ol>
+                </div>
+
+                <!-- Código Google Apps Script Copiável -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-700">Código Google Apps Script (Código.gs)</span>
+                        <button type="button" onclick="copiarCodigoScript()" class="inline-flex items-center gap-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg transition cursor-pointer">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            <span>Copiar Código Apps Script</span>
+                        </button>
+                    </div>
+                    <textarea id="codigoAppsScript" readonly rows="13" class="w-full font-mono text-xs bg-slate-900 text-emerald-300 p-3.5 rounded-xl border border-slate-700 focus:outline-none">function doGet(e) {
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: "online", mensagem: "API TIHI pronta!" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var data = {};
+
+    // Lê parâmetros vindos do formulário oculto (e.parameter) ou JSON (e.postData)
+    if (e && e.parameter && (e.parameter.item || e.parameter.solicitante)) {
+      data = e.parameter;
+    } else if (e && e.postData && e.postData.contents) {
+      data = JSON.parse(e.postData.contents);
+    } else {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: "erro", mensagem: "Nenhum dado recebido." }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Criação automática de cabeçalho caso a planilha esteja vazia
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow([
+        "Data/Hora Registro",
+        "Solicitante",
+        "Data Alteração",
+        "Item (SKU)",
+        "Base x Altura Anterior",
+        "Base x Altura Atualizado",
+        "Variação (cx)"
+      ]);
+    }
+
+    sheet.appendRow([
+      new Date(),
+      data.solicitante || "",
+      data.data || "",
+      data.item || "",
+      data.anterior || "",
+      data.atualizado || "",
+      data.variacao || ""
+    ]);
+
+    // Força gravação imediata na planilha
+    SpreadsheetApp.flush();
+
+    return HtmlService.createHtmlOutput("<script>window.top.postMessage('TIHI_OK', '*');</script>OK");
+  } catch (erro) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: "erro", detalhe: erro.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}</textarea>
+                </div>
+            </div>
+
+            <!-- Rodapé Modal -->
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button type="button" onclick="fecharModalIntegracao()" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 bg-slate-200 hover:bg-slate-300 transition cursor-pointer">
+                    Cancelar
+                </button>
+                <button type="button" onclick="salvarConfiguracoesIntegracao()" class="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs transition cursor-pointer">
+                    Salvar Configurações
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação (Limpar Histórico) -->
+    <div id="modalConfirmar" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <div class="flex items-center gap-3 text-red-600 mb-3">
+                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-900">Limpar Histórico Local</h3>
+            </div>
+            <p class="text-sm text-slate-600 mb-6">
+                Tem certeza que deseja apagar todos os registros exibidos nesta tabela local? Os dados já gravados na Planilha Google não serão afetados.
+            </p>
+            <div class="flex items-center justify-end gap-2.5">
+                <button type="button" onclick="fecharModalConfirmar()" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer">
+                    Cancelar
+                </button>
+                <button type="button" onclick="executarLimparHistorico()" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition cursor-pointer">
+                    Sim, Limpar Tudo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // CHAVES DE ARMAZENAMENTO LOCAL (localStorage)
+        // =========================================================================
+        const STORAGE = {
+            REGISTROS: 'tihi_registros',
+            DRIVE_URL: 'tihi_drive_url',
+            SCRIPT_URL: 'tihi_script_url'
+        };
+
+        let registros = [];
+        let envioEmAndamentoId = null;
+        let isTesteEmAndamento = false;
+        let timeoutConfirmacaoEnvio = null;
+
+        // =========================================================================
+        // INICIALIZAÇÃO
+        // =========================================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            definirDataHoje();
+            carregarConfiguracoes();
+            carregarRegistros();
+        });
+
+        // Escuta resposta opcional enviada via postMessage pelo Apps Script
+        window.addEventListener('message', (event) => {
+            if (event.data === 'TIHI_OK') {
+                concluirEnvioAtual();
+            }
+        });
+
+        function definirDataHoje() {
+            const hoje = new Date();
+            const ano = hoje.getFullYear();
+            const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+            const dia = String(hoje.getDate()).padStart(2, '0');
+            document.getElementById('dataAlteracao').value = `${ano}-${mes}-${dia}`;
+        }
+
+        function formatarDataBR(isoDate) {
+            if (!isoDate) return '';
+            const partes = isoDate.split('-');
+            if (partes.length !== 3) return isoDate;
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
+        // =========================================================================
+        // VALIDAÇÃO FLEXÍVEL DE URL (PÚBLICA OU CORPORATIVA GOOGLE WORKSPACE)
+        // =========================================================================
+        function validarUrlAppsScript(url) {
+            if (!url) {
+                return { valida: false, erro: 'Informe a URL do Web App Google Apps Script.' };
+            }
+            const padraoPublico = url.startsWith('https://script.google.com/macros/s/');
+            const padraoCorporativo = /^https:\/\/script\.google\.com\/a\/macros\/[^/]+\/s\//.test(url);
+
+            if (!padraoPublico && !padraoCorporativo) {
+                return {
+                    valida: false,
+                    erro: 'URL inválida. Deve iniciar com https://script.google.com/macros/s/ ou https://script.google.com/a/macros/seu-dominio/s/'
+                };
+            }
+            if (url.endsWith('/dev')) {
+                return {
+                    valida: false,
+                    erro: 'URLs terminadas em /dev são apenas de rascunho. Implante como App da Web e copie a URL terminada em /exec.'
+                };
+            }
+            if (!url.endsWith('/exec')) {
+                return {
+                    valida: false,
+                    erro: 'A URL do Web App Google Apps Script deve terminar exatamente com /exec.'
+                };
+            }
+            return { valida: true };
+        }
+
+        // =========================================================================
+        // CONFIGURAÇÕES GOOGLE DRIVE & APPS SCRIPT
+        // =========================================================================
+        function carregarConfiguracoes() {
+            const driveUrl = localStorage.getItem(STORAGE.DRIVE_URL) || '';
+            const scriptUrl = localStorage.getItem(STORAGE.SCRIPT_URL) || '';
+
+            document.getElementById('inputDriveUrl').value = driveUrl;
+            document.getElementById('inputScriptUrl').value = scriptUrl;
+
+            const btnTop = document.getElementById('btnAbrirPlanilhaTop');
+            btnTop.href = driveUrl || '#';
+
+            const dot = document.getElementById('indicadorDot');
+            const texto = document.getElementById('indicadorTexto');
+
+            if (scriptUrl && validarUrlAppsScript(scriptUrl).valida) {
+                const isCorp = scriptUrl.includes('/a/macros/');
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0';
+                texto.innerHTML = `<strong class="text-emerald-800">Planilha Google Conectada (${isCorp ? 'Modo Corporativo SSO' : 'Modo Web App'}):</strong> Envio autenticado ativo ao salvar.`;
+            } else {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0';
+                texto.innerHTML = `Integração com Google Sheets ainda não configurada. Configure a URL do Web App para enviar automaticamente.`;
+            }
+        }
+
+        function abrirModalIntegracao() {
+            document.getElementById('modalIntegracao').classList.remove('hidden');
+        }
+
+        function fecharModalIntegracao() {
+            document.getElementById('modalIntegracao').classList.add('hidden');
+        }
+
+        function salvarConfiguracoesIntegracao() {
+            const driveUrl = document.getElementById('inputDriveUrl').value.trim();
+            const scriptUrl = document.getElementById('inputScriptUrl').value.trim();
+
+            if (driveUrl && !driveUrl.startsWith('http')) {
+                mostrarToast('Informe uma URL válida para a Planilha ou Pasta no Drive.', 'erro');
+                return;
+            }
+
+            if (scriptUrl) {
+                const check = validarUrlAppsScript(scriptUrl);
+                if (!check.valida) {
+                    mostrarToast(check.erro, 'erro');
+                    return;
+                }
+            }
+
+            localStorage.setItem(STORAGE.DRIVE_URL, driveUrl);
+            localStorage.setItem(STORAGE.SCRIPT_URL, scriptUrl);
+
+            carregarConfiguracoes();
+            fecharModalIntegracao();
+            mostrarToast('Configurações de integração salvas com sucesso!', 'sucesso');
+        }
+
+        function verificarUrlDrive(event) {
+            const driveUrl = localStorage.getItem(STORAGE.DRIVE_URL);
+            if (!driveUrl) {
+                event.preventDefault();
+                abrirModalIntegracao();
+                mostrarToast('Configure primeiro o link da Planilha ou Pasta no Drive Compartilhado.', 'aviso');
+            }
+        }
+
+        function copiarCodigoScript() {
+            const textarea = document.getElementById('codigoAppsScript');
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            try {
+                document.execCommand('copy');
+                mostrarToast('Código Google Apps Script copiado para a área de transferência!', 'sucesso');
+            } catch (e) {
+                mostrarToast('Selecione o texto e pressione Ctrl+C para copiar.', 'aviso');
+            }
+        }
+
+        // =========================================================================
+        // ENVIO AUTENTICADO VIA FORMULÁRIO + IFRAME OCULTO (PASSA PELO SSO DO BROWSER)
+        // =========================================================================
+        function submeterViaIframeOculto(scriptUrl, dados) {
+            const form = document.getElementById('googleForm');
+            form.action = scriptUrl;
+
+            document.getElementById('gf_solicitante').value = dados.solicitante || '';
+            document.getElementById('gf_data').value = dados.data || '';
+            document.getElementById('gf_item').value = dados.item || '';
+            document.getElementById('gf_anterior').value = dados.anterior || '';
+            document.getElementById('gf_atualizado').value = dados.atualizado || '';
+            document.getElementById('gf_variacao').value = dados.variacao || '';
+
+            clearTimeout(timeoutConfirmacaoEnvio);
+            form.submit();
+
+            // Fallback caso o navegador bloqueie o evento onload cross-origin do iframe
+            timeoutConfirmacaoEnvio = setTimeout(() => {
+                concluirEnvioAtual();
+            }, 3000);
+        }
+
+        function handleIframeLoad() {
+            if (envioEmAndamentoId || isTesteEmAndamento) {
+                concluirEnvioAtual();
+            }
+        }
+
+        function concluirEnvioAtual() {
+            clearTimeout(timeoutConfirmacaoEnvio);
+
+            if (isTesteEmAndamento) {
+                isTesteEmAndamento = false;
+                const btn = document.getElementById('btnTestarConexao');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4"></i><span>Testar Conexão Agora</span>`;
+                    lucide.createIcons();
+                }
+                mostrarToast('Envio de teste concluído! Verifique se a linha apareceu na sua Planilha Google.', 'sucesso');
+                return;
+            }
+
+            if (envioEmAndamentoId) {
+                const reg = registros.find(r => r.id === envioEmAndamentoId);
+                envioEmAndamentoId = null;
+                if (reg) {
+                    reg.statusEnvio = 'enviado';
+                    salvarRegistrosLocal();
+                    mostrarToast(`Item "${reg.item}" enviado via sessão do navegador para a Planilha Google!`, 'sucesso');
+                }
+            }
+        }
+
+        function testarConexaoAgora() {
+            const scriptUrl = document.getElementById('inputScriptUrl').value.trim();
+            const check = validarUrlAppsScript(scriptUrl);
+
+            if (!check.valida) {
+                mostrarToast(check.erro, 'erro');
+                return;
+            }
+
+            localStorage.setItem(STORAGE.SCRIPT_URL, scriptUrl);
+            carregarConfiguracoes();
+
+            const btn = document.getElementById('btnTestarConexao');
+            btn.disabled = true;
+            btn.innerHTML = `<span>Enviando teste...</span>`;
+
+            isTesteEmAndamento = true;
+            submeterViaIframeOculto(scriptUrl, {
+                solicitante: 'TESTE DE CONEXÃO SSO',
+                data: formatarDataBR(document.getElementById('dataAlteracao').value) || '13/11/2026',
+                item: 'SKU-TESTE-TIHI',
+                anterior: '10x5 (50)',
+                atualizado: '12x5 (60)',
+                variacao: '+10 cx'
+            });
+        }
+
+        // =========================================================================
+        // CÁLCULOS DE TIHI EM TEMPO REAL
+        // =========================================================================
+        function calcularTotais() {
+            const bAnt = parseInt(document.getElementById('baseAnterior').value, 10) || 0;
+            const aAnt = parseInt(document.getElementById('alturaAnterior').value, 10) || 0;
+            const totAnt = bAnt * aAnt;
+
+            const bAtu = parseInt(document.getElementById('baseAtualizada').value, 10) || 0;
+            const aAtu = parseInt(document.getElementById('alturaAtualizada').value, 10) || 0;
+            const totAtu = bAtu * aAtu;
+
+            document.getElementById('badgeTotalAnterior').textContent = `Total: ${totAnt} cx/plt`;
+            document.getElementById('badgeTotalAtualizado').textContent = `Total: ${totAtu} cx/plt`;
+
+            const badgeVar = document.getElementById('badgeVariacao');
+            if (totAnt > 0 && totAtu > 0) {
+                const diff = totAtu - totAnt;
+                badgeVar.classList.remove('hidden', 'bg-emerald-100', 'text-emerald-800', 'bg-red-100', 'text-red-800', 'bg-slate-200', 'text-slate-700');
+
+                if (diff > 0) {
+                    badgeVar.textContent = `+${diff} cx`;
+                    badgeVar.classList.add('bg-emerald-100', 'text-emerald-800');
+                } else if (diff < 0) {
+                    badgeVar.textContent = `${diff} cx`;
+                    badgeVar.classList.add('bg-red-100', 'text-red-800');
+                } else {
+                    badgeVar.textContent = `0 cx`;
+                    badgeVar.classList.add('bg-slate-200', 'text-slate-700');
+                }
+            } else {
+                badgeVar.classList.add('hidden');
+            }
+        }
+
+        // =========================================================================
+        // SALVAR REGISTRO & ENVIAR PARA PLANILHA GOOGLE
+        // =========================================================================
+        function carregarRegistros() {
+            try {
+                const salvo = localStorage.getItem(STORAGE.REGISTROS);
+                registros = salvo ? JSON.parse(salvo) : [];
+            } catch (e) {
+                registros = [];
+            }
+            renderizarTabela();
+        }
+
+        function salvarRegistrosLocal() {
+            localStorage.setItem(STORAGE.REGISTROS, JSON.stringify(registros));
+            renderizarTabela();
+        }
+
+        function handleSalvarEEnviar(event) {
+            event.preventDefault();
+
+            const solicitante = document.getElementById('solicitante').value.trim();
+            const dataISO = document.getElementById('dataAlteracao').value;
+            const item = document.getElementById('itemSku').value.trim();
+            const baseAnterior = parseInt(document.getElementById('baseAnterior').value, 10);
+            const alturaAnterior = parseInt(document.getElementById('alturaAnterior').value, 10);
+            const baseAtualizada = parseInt(document.getElementById('baseAtualizada').value, 10);
+            const alturaAtualizada = parseInt(document.getElementById('alturaAtualizada').value, 10);
+
+            if (!solicitante || !dataISO || !item || !baseAnterior || !alturaAnterior || !baseAtualizada || !alturaAtualizada) {
+                mostrarToast('Preencha todos os campos obrigatórios antes de salvar.', 'erro');
+                return;
+            }
+
+            const totalAnterior = baseAnterior * alturaAnterior;
+            const totalAtualizado = baseAtualizada * alturaAtualizada;
+            const diff = totalAtualizado - totalAnterior;
+            const variacaoFmt = diff > 0 ? `+${diff} cx` : `${diff} cx`;
+            const dataBR = formatarDataBR(dataISO);
+
+            const idGerado = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+
+            const novoRegistro = {
+                id: idGerado,
+                solicitante,
+                dataISO,
+                data: dataBR,
+                item,
+                baseAnterior,
+                alturaAnterior,
+                totalAnterior,
+                anterior: `${baseAnterior}x${alturaAnterior} (${totalAnterior})`,
+                baseAtualizada,
+                alturaAtualizada,
+                totalAtualizado,
+                atualizado: `${baseAtualizada}x${alturaAtualizada} (${totalAtualizado})`,
+                variacaoNum: diff,
+                variacao: variacaoFmt,
+                statusEnvio: 'local'
+            };
+
+            registros.unshift(novoRegistro);
+            salvarRegistrosLocal();
+            limparFormulario(true);
+
+            const scriptUrl = localStorage.getItem(STORAGE.SCRIPT_URL) || '';
+            const check = validarUrlAppsScript(scriptUrl);
+            if (!check.valida) {
+                mostrarToast('Salvo localmente! Configure a URL do Apps Script (/exec) para enviar ao Google Sheets.', 'aviso');
+                return;
+            }
+
+            enviarRegistroParaSheets(novoRegistro.id);
+        }
+
+        function enviarRegistroParaSheets(idRegistro) {
+            const scriptUrl = localStorage.getItem(STORAGE.SCRIPT_URL) || '';
+            const check = validarUrlAppsScript(scriptUrl);
+
+            if (!check.valida) {
+                abrirModalIntegracao();
+                mostrarToast(check.erro, 'aviso');
+                return;
+            }
+
+            const reg = registros.find(r => r.id === idRegistro);
+            if (!reg) return;
+
+            reg.statusEnvio = 'enviando';
+            envioEmAndamentoId = reg.id;
+            salvarRegistrosLocal();
+
+            submeterViaIframeOculto(scriptUrl, {
+                solicitante: reg.solicitante,
+                data: reg.data,
+                item: reg.item,
+                anterior: reg.anterior,
+                atualizado: reg.atualizado,
+                variacao: reg.variacao
+            });
+        }
+
+        function limparFormulario(manterSolicitante = false) {
+            if (!manterSolicitante) {
+                document.getElementById('solicitante').value = '';
+                definirDataHoje();
+            }
+            document.getElementById('itemSku').value = '';
+            document.getElementById('baseAnterior').value = '';
+            document.getElementById('alturaAnterior').value = '';
+            document.getElementById('baseAtualizada').value = '';
+            document.getElementById('alturaAtualizada').value = '';
+            calcularTotais();
+            document.getElementById('itemSku').focus();
+        }
+
+        // =========================================================================
+        // RENDERIZAÇÃO DA TABELA DE HISTÓRICO
+        // =========================================================================
+        function renderizarTabela() {
+            const tbody = document.getElementById('tabelaCorpo');
+            const estadoVazio = document.getElementById('estadoVazio');
+            const contador = document.getElementById('contadorRegistros');
+            const btnLimparHist = document.getElementById('btnLimparHistorico');
+
+            contador.textContent = `${registros.length} ${registros.length === 1 ? 'registro' : 'registros'}`;
+
+            if (registros.length === 0) {
+                tbody.innerHTML = '';
+                estadoVazio.classList.remove('hidden');
+                btnLimparHist.classList.add('hidden');
+                return;
+            }
+
+            estadoVazio.classList.add('hidden');
+            btnLimparHist.classList.remove('hidden');
+
+            tbody.innerHTML = registros.map(reg => {
+                let badgeVar = `<span class="inline-flex px-2 py-0.5 rounded-md text-xs font-mono font-semibold bg-slate-100 text-slate-600">${escapeHTML(reg.variacao)}</span>`;
+                if (reg.variacaoNum > 0) {
+                    badgeVar = `<span class="inline-flex px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-emerald-100 text-emerald-800">${escapeHTML(reg.variacao)}</span>`;
+                } else if (reg.variacaoNum < 0) {
+                    badgeVar = `<span class="inline-flex px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-red-100 text-red-800">${escapeHTML(reg.variacao)}</span>`;
+                }
+
+                let badgeStatus = '';
+                if (reg.statusEnvio === 'enviado') {
+                    badgeStatus = `
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                            Enviado p/ Planilha Google
+                        </span>`;
+                } else if (reg.statusEnvio === 'enviando') {
+                    badgeStatus = `
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                            <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
+                            Enviando...
+                        </span>`;
+                } else {
+                    badgeStatus = `
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                            <i data-lucide="hard-drive" class="w-3.5 h-3.5"></i>
+                            Salvo Localmente
+                        </span>`;
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50/90 transition">
+                        <td class="py-3.5 px-4 sm:px-6 whitespace-nowrap font-mono text-xs text-slate-600">${escapeHTML(reg.data)}</td>
+                        <td class="py-3.5 px-4 font-medium text-slate-800">${escapeHTML(reg.solicitante)}</td>
+                        <td class="py-3.5 px-4 font-semibold text-slate-900">${escapeHTML(reg.item)}</td>
+                        <td class="py-3.5 px-4 text-center whitespace-nowrap">
+                            <span class="font-mono text-xs font-semibold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200">
+                                ${escapeHTML(reg.anterior)}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-4 text-center whitespace-nowrap">
+                            <span class="font-mono text-xs font-bold bg-blue-50 text-blue-900 px-2.5 py-1 rounded-lg border border-blue-200">
+                                ${escapeHTML(reg.atualizado)}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-4 text-center whitespace-nowrap">${badgeVar}</td>
+                        <td class="py-3.5 px-4 text-center whitespace-nowrap">${badgeStatus}</td>
+                        <td class="py-3.5 px-4 sm:px-6 text-right whitespace-nowrap">
+                            <div class="inline-flex items-center gap-1">
+                                <button type="button" onclick="enviarRegistroParaSheets('${reg.id}')" title="Reenviar para Planilha Google" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer">
+                                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                                </button>
+                                <button type="button" onclick="excluirRegistro('${reg.id}')" title="Excluir registro local" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function excluirRegistro(id) {
+            registros = registros.filter(r => r.id !== id);
+            salvarRegistrosLocal();
+            mostrarToast('Registro removido do histórico local.', 'info');
+        }
+
+        function solicitarLimparHistorico() {
+            document.getElementById('modalConfirmar').classList.remove('hidden');
+        }
+
+        function fecharModalConfirmar() {
+            document.getElementById('modalConfirmar').classList.add('hidden');
+        }
+
+        function executarLimparHistorico() {
+            registros = [];
+            salvarRegistrosLocal();
+            fecharModalConfirmar();
+            mostrarToast('Histórico local limpo com sucesso.', 'info');
+        }
+
+        // =========================================================================
+        // EXPORTAÇÃO PARA EXCEL (.XLSX) VIA SHEETJS
+        // =========================================================================
+        function exportarExcel() {
+            if (registros.length === 0) {
+                mostrarToast('Registre pelo menos uma alteração antes de exportar o Excel.', 'aviso');
+                return;
+            }
+
+            try {
+                const linhas = registros.map(r => ({
+                    'Data': r.data,
+                    'Solicitante': r.solicitante,
+                    'Item (SKU)': r.item,
+                    'Base Anterior': r.baseAnterior,
+                    'Altura Anterior': r.alturaAnterior,
+                    'TIHI Anterior': r.anterior,
+                    'Base Atualizada': r.baseAtualizada,
+                    'Altura Atualizada': r.alturaAtualizada,
+                    'TIHI Atualizado': r.atualizado,
+                    'Variação': r.variacao,
+                    'Status Envio': r.statusEnvio === 'enviado' ? 'Enviado p/ Planilha Google' : 'Salvo Localmente'
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(linhas);
+                ws['!cols'] = [
+                    { wch: 13 }, { wch: 24 }, { wch: 28 },
+                    { wch: 15 }, { wch: 16 }, { wch: 18 },
+                    { wch: 16 }, { wch: 17 }, { wch: 18 },
+                    { wch: 14 }, { wch: 25 }
+                ];
+
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Controle_TIHI');
+
+                const hoje = new Date().toISOString().slice(0, 10);
+                const arquivo = `Controle_Alteracao_TIHI_${hoje}.xlsx`;
+                XLSX.writeFile(wb, arquivo);
+
+                mostrarToast(`Planilha "${arquivo}" exportada com sucesso!`, 'sucesso');
+            } catch (e) {
+                console.error(e);
+                mostrarToast('Erro ao gerar o arquivo Excel.', 'erro');
+            }
+        }
+
+        // =========================================================================
+        // TOAST NOTIFICATIONS & SEGURANÇA HTML
+        // =========================================================================
+        function mostrarToast(mensagem, tipo = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            const estilos = {
+                sucesso: 'bg-emerald-900 text-white border-emerald-700',
+                erro: 'bg-red-900 text-white border-red-700',
+                aviso: 'bg-amber-900 text-white border-amber-700',
+                info: 'bg-slate-900 text-white border-slate-700'
+            };
+
+            const icones = {
+                sucesso: 'check-circle-2',
+                erro: 'alert-circle',
+                aviso: 'alert-triangle',
+                info: 'info'
+            };
+
+            toast.className = `pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border text-xs sm:text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${estilos[tipo] || estilos.info}`;
+            toast.innerHTML = `
+                <i data-lucide="${icones[tipo] || 'info'}" class="w-4 h-4 shrink-0 mt-0.5"></i>
+                <span class="flex-1 leading-snug">${escapeHTML(mensagem)}</span>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4200);
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>
